@@ -2,6 +2,7 @@ import { RequestMethod } from "../types/fetch.ts";
 import { authorization } from "./client.ts";
 import { delay } from "https://deno.land/std@0.50.0/async/delay.ts";
 import { Errors } from "../types/errors.ts";
+import { HttpResponseCode } from "../types/discord.ts";
 
 const queue: Array<() => Promise<unknown>> = [];
 const ratelimitedPaths = new Map<string, RateLimitedPath>();
@@ -40,11 +41,7 @@ processRateLimitedPaths();
 export const RequestManager = {
   // Something off about using runMethod with get breaks when using fetch
   get: async (url: string, body?: unknown) => {
-    await checkRatelimits(url);
-    const result = await fetch(url, createRequestBody(body));
-    processHeaders(url, result.headers);
-
-    return result.json();
+    return runMethod(RequestMethod.Get, url, body);
   },
   post: (url: string, body?: unknown) => {
     return runMethod(RequestMethod.Post, url, body);
@@ -60,7 +57,7 @@ export const RequestManager = {
   },
 };
 
-function createRequestBody (body: any, method?: RequestMethod) {
+function createRequestBody(body: any, method: RequestMethod) {
   return {
     headers: {
       Authorization: authorization,
@@ -70,9 +67,9 @@ function createRequestBody (body: any, method?: RequestMethod) {
       "X-Audit-Log-Reason": body ? encodeURIComponent(body.reason) : "",
     },
     body: JSON.stringify(body),
-    method: method?.toUpperCase(),
+    method: method.toUpperCase(),
   };
-};
+}
 
 async function checkRatelimits(url: string) {
   const ratelimited = ratelimitedPaths.get(url);
@@ -99,17 +96,19 @@ async function runMethod(
         await checkRatelimits(url);
         const response = await fetch(url, createRequestBody(body, method));
         processHeaders(url, response.headers);
+        handleStatusCode(response.status);
 
         // Sometimes Discord returns an empty 204 response that can't be made to JSON.
         if (response.status === 204) resolve();
 
         const json = await response.json();
         if (
-          json.retry_after || json.message === "You are being rate limited."
+          json.retry_after ||
+          json.message === "You are being rate limited."
         ) {
           if (retryCount > 10) throw new Error(Errors.RATE_LIMIT_RETRY_MAXED);
           await delay(json.retry_after);
-          return runMethod(method, url, body, retryCount++)
+          return runMethod(method, url, body, retryCount++);
         }
 
         return resolve(json);
@@ -124,7 +123,28 @@ async function runMethod(
       processQueue();
     }
   });
-};
+}
+
+function handleStatusCode(status: number): boolean {
+  if (status >= 200 && status < 400) {
+    return true;
+  }
+
+  switch (status) {
+    case HttpResponseCode.BadRequest:
+    case HttpResponseCode.Unauthorized:
+    case HttpResponseCode.Forbidden:
+    case HttpResponseCode.NotFound:
+    case HttpResponseCode.MethodNotAllowed:
+    case HttpResponseCode.TooManyRequests:
+      throw new Error(Errors.REQUEST_CLIENT_ERROR);
+    case HttpResponseCode.GatewayUnavailable:
+      throw new Error(Errors.REQUEST_SERVER_ERROR);
+  }
+
+  // left are all unknown
+  throw new Error(Errors.REQUEST_UNKNOWN_ERROR);
+}
 
 function processHeaders(url: string, headers: Headers) {
   // If a rate limit response is encountered this will become true and returned
@@ -160,4 +180,4 @@ function processHeaders(url: string, headers: Headers) {
 
   // Returns a boolean to check if we need to request again once the rate limit resets
   return ratelimited;
-};
+}

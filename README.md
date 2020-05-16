@@ -12,6 +12,13 @@ If you are just starting out, you can use the Discordeno Template repo to get th
 
 **[Official Boilerplate](https://github.com/Skillz4Killz/Discordeno-bot-template):** This is a very minimalistic design for a boilerplate for your bot to get you started.
 
+## Open Source Bots Using Discordeno
+
+| Bot Name           | Developer          | Links |
+|--------------------|--------------------|---------------------------------------------------------|
+| DenoBot            | NTM Nathan#0001    | [Github](https://github.com/ntm-development/DenoBot), [Support Server](https://discord.com/invite/G2rb53z) |
+| discordeno-mattis  | Mattis6666         | [Github](https://github.com/Mattis6666/discordeno-mattis/) |
+
 ## Motivations/Features
 
 This project began out of the desire to want to learn and enhance my developer skills. As I was building it, I encountered so many issues that other libraries have that I wanted to change in my library.
