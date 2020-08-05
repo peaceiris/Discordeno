@@ -1,4 +1,4 @@
-import { Raw_Overwrite, Overwrite } from "./guild.ts";
+import { RawOverwrite, Overwrite } from "./guild.ts";
 import { Embed } from "./message.ts";
 
 export interface ChannelEditOptions {
@@ -22,7 +22,7 @@ export interface ChannelEditOptions {
   parent_id?: string;
 }
 
-export interface Base_Channel_Create {
+export interface BaseChannelCreate {
   /** The id of the guild */
   guild_id?: string;
   /** Sorting position of the channel */
@@ -65,23 +65,16 @@ export interface DMChannelCreatePayload {
   }[];
 }
 
-export interface ChannelCreatePayload extends Base_Channel_Create {
+export interface ChannelCreatePayload extends BaseChannelCreate {
   /** The id of this channel */
   id: string;
   /** The type of the channel */
-  type: Channel_Type;
+  type: ChannelType;
   /** Explicit permission overwrites for members and roles */
-  permission_overwrites?: Raw_Overwrite[];
+  permission_overwrites?: RawOverwrite[];
 }
 
-export interface CreateChannelOptions extends Base_Channel_Create {
-  /** The type of the channel */
-  type?: ChannelTypes;
-  /** Explicit permission overwrites for members and roles */
-  permission_overwrites?: Overwrite[];
-}
-
-export type Channel_Type = 0 | 1 | 2 | 4 | 5 | 6;
+export type ChannelType = 0 | 1 | 2 | 4 | 5 | 6;
 
 export enum ChannelTypes {
   /** A text channel within a server */
@@ -99,10 +92,6 @@ export enum ChannelTypes {
   /** A channel in which game developers can sell their game on Discord. */
   GUILD_STORE,
 }
-
-// export interface File_Content {
-
-// }
 
 export interface MessageContent {
   mentions?: {

@@ -11,7 +11,6 @@ import { endpoints } from "../constants/discord.ts";
 import { Errors } from "../types/errors.ts";
 import { Permissions, Permission } from "../types/permission.ts";
 import {
-  CreateChannelOptions,
   ChannelCreatePayload,
   ChannelTypes,
 } from "../types/channel.ts";
@@ -28,6 +27,7 @@ import {
   GuildEditOptions,
   PruneOptions,
   PrunePayload,
+  ChannelCreateOptions,
 } from "../types/guild.ts";
 import { RoleData } from "../types/role.ts";
 import { createRole } from "../structures/role.ts";
@@ -93,7 +93,7 @@ export function guildBannerURL(
 export async function createGuildChannel(
   guild: Guild,
   name: string,
-  options?: CreateChannelOptions,
+  options?: ChannelCreateOptions,
 ) {
   if (!botHasPermission(guild.id, [Permissions.MANAGE_CHANNELS])) {
     throw new Error(Errors.MISSING_MANAGE_CHANNELS);
@@ -105,8 +105,14 @@ export async function createGuildChannel(
       name,
       permission_overwrites: options?.permission_overwrites?.map((perm) => ({
         ...perm,
-        allow: perm.allow.map((p) => Permissions[p]),
-        deny: perm.deny.map((p) => Permissions[p]),
+        allow: perm.allow.reduce(
+          (bits, p) => bits & BigInt(Permissions[p]),
+          BigInt(0),
+        ).toString(),
+        deny: perm.deny.reduce(
+          (bits, p) => bits & BigInt(Permissions[p]),
+          BigInt(0),
+        ).toString(),
       })),
       type: options?.type || ChannelTypes.GUILD_TEXT,
     })) as ChannelCreatePayload;
@@ -117,12 +123,16 @@ export async function createGuildChannel(
 }
 
 /** Delete a channel in your server. Bot needs MANAGE_CHANNEL permissions in the server. */
-export function deleteChannel(guildID: string, channelID: string, reason?: string) {
+export function deleteChannel(
+  guildID: string,
+  channelID: string,
+  reason?: string,
+) {
   if (!botHasPermission(guildID, [Permissions.MANAGE_CHANNELS])) {
     throw new Error(Errors.MISSING_MANAGE_CHANNELS);
   }
 
-  return RequestManager.delete(endpoints.CHANNEL(channelID), { reason })
+  return RequestManager.delete(endpoints.CHANNEL(channelID), { reason });
 }
 
 /** Returns a list of guild channel objects.
@@ -225,17 +235,17 @@ export function emojiURL(id: string, animated = false) {
 
 /** Create a new role for the guild. Requires the MANAGE_ROLES permission. */
 export async function createGuildRole(
-  guild: Guild,
+  guildID: string,
   options: CreateRoleOptions,
   reason?: string,
 ) {
   if (
-    !botHasPermission(guild.id, [Permissions.MANAGE_ROLES])
+    !botHasPermission(guildID, [Permissions.MANAGE_ROLES])
   ) {
     throw new Error(Errors.MISSING_MANAGE_ROLES);
   }
-  const role_data = await RequestManager.post(
-    endpoints.GUILD_ROLES(guild.id),
+  const result = await RequestManager.post(
+    endpoints.GUILD_ROLES(guildID),
     {
       ...options,
       permissions: options.permissions
@@ -247,9 +257,10 @@ export async function createGuildRole(
     },
   );
 
-  const roleData = role_data as RoleData;
+  const roleData = result as RoleData;
   const role = createRole(roleData);
-  guild.roles.set(role.id, role);
+  const guild = cache.guilds.get(guildID)
+  guild?.roles.set(role.id, role);
   return role;
 }
 
@@ -500,15 +511,15 @@ export function channelHasPermissions(
     const role = guild.roles.get(roleID);
     if (!role) return bits;
 
-    bits |= role.permissions;
+    bits |= BigInt(role.permissions_new)
 
     return bits;
-  }, 0);
+  }, BigInt(0));
 
-  if (permissionBits & Permissions.ADMINISTRATOR) return true;
+  if (permissionBits & BigInt(Permissions.ADMINISTRATOR)) return true;
 
   return permissions.every((permission) =>
-    permissionBits & Permissions[permission]
+    permissionBits & BigInt(Permissions[permission])
   );
 }
 
