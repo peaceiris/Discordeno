@@ -8,6 +8,23 @@ import { Role } from "../structures/role.ts";
 import { Guild } from "../structures/guild.ts";
 
 /** Checks if the member has this permission. If the member is an owner or has admin perms it will always be true. */
+export function memberIDHasPermission(
+  memberID: string,
+  guildID: string,
+  permissions: Permission[],
+) {
+  const guild = cache.guilds.get(guildID);
+  if (!guild) return false;
+
+  if (memberID === guild.ownerID) return true;
+
+  const member = guild.members.get(memberID);
+  if (!member) return false;
+
+  return memberHasPermission(member.guildID, guild, member.roles, permissions)
+}
+
+/** Checks if the member has this permission. If the member is an owner or has admin perms it will always be true. */
 export function memberHasPermission(
   memberID: string,
   guild: Guild,
@@ -20,7 +37,7 @@ export function memberHasPermission(
     guild.roles.get(id)?.permissions_new
   )
     .reduce((bits, permissions) => {
-      bits |= BigInt(permissions)
+      bits |= BigInt(permissions);
       return bits;
     }, BigInt(0));
 
@@ -41,7 +58,7 @@ export function botHasPermission(guildID: string, permissions: Permissions[]) {
   const permissionBits = member.roles
     .map((id) => guild.roles.get(id)!)
     .reduce((bits, data) => {
-      bits |= BigInt(data.permissions_new)
+      bits |= BigInt(data.permissions_new);
 
       return bits;
     }, BigInt(0));
@@ -204,6 +221,11 @@ export function higherRolePosition(
   const role = guild.roles.get(roleID);
   const otherRole = guild.roles.get(otherRoleID);
   if (!role || !otherRole) return;
+
+  // Rare edge case handling
+  if (role.position === otherRole.position) {
+    return role.id < otherRole.id
+  }
 
   return role.position > otherRole.position;
 }
