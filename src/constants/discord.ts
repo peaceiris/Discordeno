@@ -59,7 +59,8 @@ export const endpoints = {
     `${GUILDS_BASE(id)}/integrations/${integrationID}`,
   GUILD_INTEGRATION_SYNC: (id: string, integrationID: string) =>
     `${GUILDS_BASE(id)}/integrations/${integrationID}/sync`,
-  GUILD_INTEGRATIONS: (id: string) => `${GUILDS_BASE(id)}/integrations`,
+  GUILD_INTEGRATIONS: (id: string) =>
+    `${GUILDS_BASE(id)}/integrations?include_applications=true`,
   GUILD_INVITES: (id: string) => `${GUILDS_BASE(id)}/invites`,
   GUILD_LEAVE: (id: string) =>
     `${baseEndpoints.BASE_URL}/users/@me/guilds/${id}`,
@@ -76,6 +77,9 @@ export const endpoints = {
     `${baseEndpoints.CDN_URL}/splashes/${id}/${icon}`,
   GUILD_VANITY_URL: (id: string) => `${GUILDS_BASE(id)}/vanity-url`,
   GUILD_WEBHOOKS: (id: string) => `${GUILDS_BASE(id)}/webhooks`,
+
+  WEBHOOK: (id: string, token: string) =>
+    `${baseEndpoints.BASE_URL}/webhooks/${id}/${token}`,
 
   // User endpoints
   USER_AVATAR: (id: string, icon: string) =>
