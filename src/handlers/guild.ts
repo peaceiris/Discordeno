@@ -28,6 +28,8 @@ import {
   PruneOptions,
   PrunePayload,
   ChannelCreateOptions,
+  BannedUser,
+  UserPayload,
 } from "../types/guild.ts";
 import { RoleData } from "../types/role.ts";
 import { createRole } from "../structures/role.ts";
@@ -36,8 +38,9 @@ import { identifyPayload } from "../module/client.ts";
 import { requestAllMembers } from "../module/shardingManager.ts";
 import { MemberCreatePayload } from "../types/member.ts";
 import { cache } from "../utils/cache.ts";
-import { createMember } from "../structures/member.ts";
+import { createMember, Member } from "../structures/member.ts";
 import { urlToBase64 } from "../utils/utils.ts";
+import { Collection } from "../utils/collection.ts";
 
 /** Gets an array of all the channels ids that are the children of this category. */
 export function categoryChildrenIDs(guild: Guild, id: string) {
@@ -106,11 +109,11 @@ export async function createGuildChannel(
       permission_overwrites: options?.permission_overwrites?.map((perm) => ({
         ...perm,
         allow: perm.allow.reduce(
-          (bits, p) => bits & BigInt(Permissions[p]),
+          (bits, p) => bits |= BigInt(Permissions[p]),
           BigInt(0),
         ).toString(),
         deny: perm.deny.reduce(
-          (bits, p) => bits & BigInt(Permissions[p]),
+          (bits, p) => bits |= BigInt(Permissions[p]),
           BigInt(0),
         ).toString(),
       })),
@@ -139,8 +142,30 @@ export function deleteChannel(
 *
 * ⚠️ **If you need this, you are probably doing something wrong. This is not intended for use. Your channels will be cached in your guild.**
 */
-export function getChannels(guildID: string) {
-  return RequestManager.get(endpoints.GUILD_CHANNELS(guildID));
+export async function getChannels(guildID: string, addToCache = true) {
+  const result = await RequestManager.get(
+    endpoints.GUILD_CHANNELS(guildID),
+  ) as ChannelCreatePayload[];
+  return result.map((res) => {
+    const channel = createChannel(res, guildID);
+    if (addToCache) {
+      cache.channels.set(channel.id, channel);
+    }
+    return channel;
+  });
+}
+
+/** Fetches a single channel object from the api.
+*
+* ⚠️ **If you need this, you are probably doing something wrong. This is not intended for use. Your channels will be cached in your guild.**
+*/
+export async function getChannel(channelID: string, addToCache = true) {
+  const result = await RequestManager.get(
+    endpoints.GUILD_CHANNEL(channelID),
+  ) as ChannelCreatePayload;
+  const channel = createChannel(result, result.guild_id);
+  if (addToCache) cache.channels.set(channel.id, channel);
+  return channel;
 }
 
 /** Modify the positions of channels on the guild. Requires MANAGE_CHANNELS permisison. */
@@ -178,13 +203,17 @@ export async function getMember(guildID: string, id: string) {
 *
 * ⚠️ **ADVANCED USE ONLY: Your members will be cached in your guild most likely. Only use this when you are absolutely sure the member is not cached.**
 */
-export async function getMembersByQuery(guildID: string, name: string, limit = 1) {
+export async function getMembersByQuery(
+  guildID: string,
+  name: string,
+  limit = 1,
+) {
   const guild = cache.guilds.get(guildID);
   if (!guild) return;
 
   return new Promise((resolve) => {
     requestAllMembers(guild, resolve, { query: name, limit });
-  })
+  }) as Promise<Collection<string, Member>>;
 }
 
 /** Create an emoji in the server. Emojis and animated emojis have a maximum file size of 256kb. Attempting to upload an emoji larger than this limit will fail and return 400 Bad Request and an error message, but not a JSON status code. If a URL is provided to the image parameter, Discordeno will automatically convert it to a base64 string internally. */
@@ -367,7 +396,7 @@ export function fetchMembers(guild: Guild, options?: FetchMembersOptions) {
 
   return new Promise((resolve) => {
     requestAllMembers(guild, resolve, options);
-  });
+  }) as Promise<Collection<string, Member>>;
 }
 
 /** Returns the audit logs for the guild. Requires VIEW AUDIT LOGS permission */
@@ -464,13 +493,33 @@ export function syncIntegration(guildID: string, id: string) {
 }
 
 /** Returns a list of ban objects for the users banned from this guild. Requires the BAN_MEMBERS permission. */
-export function getBans(guildID: string) {
+export async function getBans(guildID: string) {
   if (
     !botHasPermission(guildID, [Permissions.BAN_MEMBERS])
   ) {
     throw new Error(Errors.MISSING_BAN_MEMBERS);
   }
-  return RequestManager.get(endpoints.GUILD_BANS(guildID));
+
+  const results = await RequestManager.get(
+    endpoints.GUILD_BANS(guildID),
+  ) as BannedUser[];
+
+  return new Collection<string, BannedUser>(
+    results.map((res) => [res.user.id, res]),
+  );
+}
+
+/** Returns a ban object for the given user or a 404 not found if the ban cannot be found. Requires the BAN_MEMBERS permission. */
+export function getBan(guildID: string, memberID: string) {
+  if (
+    !botHasPermission(guildID, [Permissions.BAN_MEMBERS])
+  ) {
+    throw new Error(Errors.MISSING_BAN_MEMBERS);
+  }
+
+  return RequestManager.get(
+    endpoints.GUILD_BAN(guildID, memberID),
+  ) as Promise<BannedUser>;
 }
 
 /** Ban a user from the guild and optionally delete previous messages sent by the user. Requires teh BAN_MEMBERS permission. */
@@ -586,4 +635,9 @@ export function getWebhooks(guildID: string) {
   }
 
   return RequestManager.get(endpoints.GUILD_WEBHOOKS(guildID));
+}
+
+/** This function will return the raw user payload in the rare cases you need to fetch a user directly from the API. */
+export function getUser(userID: string) {
+  return RequestManager.get(endpoints.USER(userID)) as Promise<UserPayload>;
 }

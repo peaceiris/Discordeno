@@ -1,7 +1,6 @@
 import { Message, createMessage } from "../structures/message.ts";
-import { delay } from "https://deno.land/std@0.61.0/async/delay.ts";
+import { delay } from "https://deno.land/std@0.67.0/async/delay.ts";
 import { botID } from "../module/client.ts";
-import { hasChannelPermission } from "./channel.ts";
 import { Permissions } from "../types/permission.ts";
 import { Errors } from "../types/errors.ts";
 import { RequestManager } from "../module/requestManager.ts";
@@ -20,10 +19,9 @@ export async function deleteMessage(
   if (message.author.id !== botID) {
     // This needs to check the channels permission not the guild permission
     if (
-      !message.guildID ||
-      !hasChannelPermission(
-        message.channel,
-        botID,
+      !message.channel.guildID ||
+      !botHasChannelPermissions(
+        message.channel.id,
         [Permissions.MANAGE_MESSAGES],
       )
     ) {
@@ -67,6 +65,22 @@ export function addReaction(
   messageID: string,
   reaction: string,
 ) {
+  if (!botHasChannelPermissions(channelID, [Permissions.ADD_REACTIONS])) {
+    throw new Error(Errors.MISSING_ADD_REACTIONS);
+  }
+
+  if (
+    !botHasChannelPermissions(channelID, [Permissions.READ_MESSAGE_HISTORY])
+  ) {
+    throw new Error(Errors.MISSING_READ_MESSAGE_HISTORY);
+  }
+
+  if (reaction.startsWith("<:")) {
+    reaction = reaction.substring(2, reaction.length - 1);
+  } else if (reaction.startsWith("<a:")) {
+    reaction = reaction.substring(3, reaction.length - 1);
+  }
+
   return RequestManager.put(
     endpoints.CHANNEL_MESSAGE_REACTION_ME(
       channelID,
@@ -100,7 +114,7 @@ export function removeReaction(
   messageID: string,
   reaction: string,
 ) {
-  RequestManager.delete(
+  return RequestManager.delete(
     endpoints.CHANNEL_MESSAGE_REACTION_ME(
       channelID,
       messageID,
@@ -116,7 +130,11 @@ export function removeUserReaction(
   reaction: string,
   userID: string,
 ) {
-  RequestManager.delete(
+  if (!botHasChannelPermissions(channelID, [Permissions.MANAGE_MESSAGES])) {
+    throw new Error(Errors.MISSING_MANAGE_MESSAGES);
+  }
+
+  return RequestManager.delete(
     endpoints.CHANNEL_MESSAGE_REACTION_USER(
       channelID,
       messageID,
@@ -133,7 +151,7 @@ export function removeAllReactions(channelID: string, messageID: string) {
   ) {
     throw new Error(Errors.MISSING_MANAGE_MESSAGES);
   }
-  RequestManager.delete(
+  return RequestManager.delete(
     endpoints.CHANNEL_MESSAGE_REACTIONS(channelID, messageID),
   );
 }
@@ -149,7 +167,7 @@ export function removeReactionEmoji(
   ) {
     throw new Error(Errors.MISSING_MANAGE_MESSAGES);
   }
-  RequestManager.delete(
+  return RequestManager.delete(
     endpoints.CHANNEL_MESSAGE_REACTION(channelID, messageID, reaction),
   );
 }
@@ -204,4 +222,12 @@ export async function editMessage(
     content,
   );
   return createMessage(result as MessageCreateOptions);
+}
+
+export async function publishMessage(channelID: string, messageID: string) {
+  const data = await RequestManager.post(
+    endpoints.CHANNEL_MESSAGE_CROSSPOST(channelID, messageID),
+  ) as MessageCreateOptions;
+
+  return createMessage(data);
 }

@@ -17,6 +17,7 @@ import {
   MessageContent,
   CreateInviteOptions,
   ChannelEditOptions,
+  FollowedChannelPayload,
 } from "../types/channel.ts";
 import { logYellow } from "../utils/logger.ts";
 
@@ -144,7 +145,7 @@ export async function sendMessage(
 
   if (content.mentions) {
     if (content.mentions.users?.length) {
-      if (content.mentions.parse.includes("users")) {
+      if (content.mentions.parse?.includes("users")) {
         content.mentions.parse = content.mentions.parse.filter((p) =>
           p !== "users"
         );
@@ -156,7 +157,7 @@ export async function sendMessage(
     }
 
     if (content.mentions.roles?.length) {
-      if (content.mentions.parse.includes("roles")) {
+      if (content.mentions.parse?.includes("roles")) {
         content.mentions.parse = content.mentions.parse.filter((p) =>
           p !== "roles"
         );
@@ -170,7 +171,10 @@ export async function sendMessage(
 
   const result = await RequestManager.post(
     endpoints.CHANNEL_MESSAGES(channel.id),
-    content,
+    {
+      ...content,
+      allowed_mentions: content.mentions,
+    },
   );
 
   return createMessage(result as MessageCreateOptions);
@@ -339,4 +343,25 @@ export function editChannel(channel: Channel, options: ChannelEditOptions) {
     endpoints.GUILD_CHANNEL(channel.id),
     payload,
   );
+}
+
+/** Follow a News Channel to send messages to a target channel. Requires the `MANAGE_WEBHOOKS` permission in the target channel. Returns the webhook id. */
+export async function followChannel(
+  sourceChannelID: string,
+  targetChannelID: string,
+) {
+  if (
+    !botHasChannelPermissions(targetChannelID, [Permissions.MANAGE_WEBHOOKS])
+  ) {
+    throw new Error(Errors.MISSING_MANAGE_CHANNELS);
+  }
+
+  const data = await RequestManager.post(
+    endpoints.CHANNEL_FOLLOW(sourceChannelID),
+    {
+      webhook_channel_id: targetChannelID,
+    },
+  ) as FollowedChannelPayload;
+
+  return data.webhook_id;
 }

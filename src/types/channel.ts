@@ -96,7 +96,7 @@ export enum ChannelTypes {
 export interface MessageContent {
   mentions?: {
     /** An array of allowed mention types to parse from the content. */
-    parse: ("roles" | "users" | "everyone")[];
+    parse?: ("roles" | "users" | "everyone")[];
     /** Array of role_ids to mention (Max size of 100) */
     roles?: string[];
     /** Array of user_ids to mention (Max size of 100) */
@@ -145,4 +145,11 @@ export interface CreateInviteOptions {
   temporary: boolean;
   /** If true, don't try to reuse a similar invite (useful for creating many unique one time use invites.) */
   unique: boolean;
+}
+
+export interface FollowedChannelPayload {
+  /** The source channel id */
+  channel_id: string;
+  /** The webhook id */
+  webhook_id: string;
 }

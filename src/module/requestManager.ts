@@ -1,6 +1,6 @@
 import { RequestMethod } from "../types/fetch.ts";
 import { authorization, eventHandlers } from "./client.ts";
-import { delay } from "https://deno.land/std@0.61.0/async/delay.ts";
+import { delay } from "https://deno.land/std@0.67.0/async/delay.ts";
 import { Errors } from "../types/errors.ts";
 import { HttpResponseCode } from "../types/discord.ts";
 import { logRed } from "../utils/logger.ts";
@@ -138,23 +138,27 @@ export const RequestManager = {
 };
 
 function createRequestBody(body: any, method: RequestMethod) {
-  const headers = {
+  const headers: { [key: string]: string } = {
     Authorization: authorization,
     "User-Agent":
       `DiscordBot (https://github.com/skillz4killz/discordeno, 6.0.0)`,
-    "Content-Type": "application/json",
-    "X-Audit-Log-Reason": body ? encodeURIComponent(body.reason) : "",
   };
 
   if (method === "get") body = undefined;
+
+  if (body?.reason) {
+    headers["X-Audit-Log-Reason"] = encodeURIComponent(body.reason);
+  }
 
   if (body?.file) {
     const form = new FormData();
     form.append("file", body.file.blob, body.file.name);
     form.append("payload_json", JSON.stringify({ ...body, file: undefined }));
     body.file = form;
-
-    delete headers["Content-Type"];
+  } else if (
+    body && ![RequestMethod.Get, RequestMethod.Delete].includes(method)
+  ) {
+    headers["Content-Type"] = "application/json";
   }
 
   return {
@@ -284,6 +288,7 @@ function handleStatusCode(response: Response) {
     return true;
   }
 
+  console.error(response);
   logRed(response);
 
   switch (status) {

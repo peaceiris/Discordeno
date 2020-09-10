@@ -8,12 +8,12 @@ import {
   botGatewayData,
   IdentifyPayload,
 } from "./client.ts";
-import { delay } from "https://deno.land/std@0.61.0/async/delay.ts";
+import { delay } from "https://deno.land/std@0.67.0/async/delay.ts";
 import {
   connectWebSocket,
   isWebSocketCloseEvent,
   WebSocket,
-} from "https://deno.land/std@0.61.0/ws/mod.ts";
+} from "https://deno.land/std@0.67.0/ws/mod.ts";
 import { DiscordHeartbeatPayload } from "../types/discord.ts";
 import { logRed } from "../utils/logger.ts";
 import { handleDiscordPayload } from "./shardingManager.ts";
@@ -33,6 +33,7 @@ export interface BasicShard {
 
 const RequestMembersQueue: RequestMemberQueuedRequest[] = [];
 let processQueue = false;
+let heartbeating = false;
 
 interface RequestMemberQueuedRequest {
   guildID: string;
@@ -73,7 +74,7 @@ export async function createBasicShard(
       if (!data.t) eventHandlers.rawGateway?.(data);
       switch (data.op) {
         case GatewayOpcode.Hello:
-          if (!resuming) {
+          if (!heartbeating) {
             heartbeat(
               basicShard,
               (data.d as DiscordHeartbeatPayload).heartbeat_interval,
@@ -190,7 +191,12 @@ async function heartbeat(
   shard: BasicShard,
   interval: number,
 ) {
-  if (shard.socket.isClosed) return;
+  if (shard.socket.isClosed) {
+    heartbeating = false;
+    return;
+  }
+
+  if (!heartbeating) heartbeating = true;
 
   shard.socket.send(
     JSON.stringify(
