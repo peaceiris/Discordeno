@@ -6,7 +6,7 @@ on:
       - patch-1
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
@@ -17,12 +17,9 @@ jobs:
       - name: Build the documentation
         run: cd docs && yarn docs:build
       - name: Deploy the documentation
-        if: success()
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs/src/.vuepress/dist
           commit_message: ${{ github.event.head_commit.message }}
-          cname: discordeno.mod.land
-          keep_files: true
-          enable_jekyll: false
+          cname: test-discordeno.peaceiris.com
