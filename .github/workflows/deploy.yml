@@ -1,7 +1,9 @@
 name: Deployment
 on:
   push:
-    branches: master
+    branches:
+      - master
+      - patch-1
 jobs:
   publish:
     runs-on: ubuntu-latest
